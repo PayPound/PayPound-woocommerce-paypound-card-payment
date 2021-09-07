@@ -35,4 +35,4 @@ As you can see, You can easily change the PayPound payment method setting and se
 
 ## How to use PayPound WordPress Plugin
 
-Once you set up the PayPound WordPress plugin then just enable it. You will see the PayPound payment method with the custom title that you set on the setting page on the checkout page.
+Once you set up the PayPound WordPress plugin then just enable it. You will see the PayPound payment method with the custom title that you set from the setting page for your customers on the checkout page.

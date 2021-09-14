@@ -105,10 +105,10 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 		$billing_postcode   = $customer->get_billing_postcode();
 		$billing_country    = $customer->get_billing_country();
 		
-		$ip_address=file_get_contents('http://checkip.dyndns.com/');
+		//$ip_address=file_get_contents('http://checkip.dyndns.com/');
 		
-		$ip = str_replace("Current IP Address: ","",$ip_address);
-		
+		//$ip = str_replace("Current IP Address: ","",$ip_address);
+		$ip = $_SERVER['REMOTE_ADDR'];
 		$apikey = $this->woocommerce_paypound_payment_api_key;
 		$apikey = $this->settings['api_key'];
 		$mode = $this->settings['testmode'];

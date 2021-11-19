@@ -136,8 +136,20 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 			'ccExpiryYear' => $_POST['card']['exiperyyear'],
 			'cvvNumber' => $_POST['card']['cvv'],
 			'customer_order_id' => $order_id,
-			'response_url' => $this->get_return_url( $order ),
+			'response_url' => site_url('paypound-callback'),
 		);
+
+		if( $order->status == "failed" ){
+			$args['first_name'] = $order->get_billing_first_name();
+			$args['last_name'] = $order->get_billing_last_name();
+			$args['address'] = $order->get_billing_address_1();
+			$args['country'] = $order->get_billing_country();
+			$args['state'] = $order->get_billing_state();
+			$args['city'] = $order->get_billing_city();
+			$args['zip'] = $order->get_billing_postcode();
+			$args['email'] = $order->get_billing_email();
+			$args['phone_no'] = $order->get_billing_phone();
+		}
 		
 		$curl = curl_init();
 		$postData = json_encode($args);
@@ -160,7 +172,7 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 
 		curl_close($curl);
 		$result = json_decode($response, true);
-	
+
 		if(isset($result['status']) && $result['status'] == 'success'){
 		// Mark as on-hold (we're awaiting the cheque)
 		$order->update_status($this->order_status, __( 'Awaiting payment', 'woocommerce-paypound-payment-gateway' ));
@@ -225,4 +237,83 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 		</fieldset>
 		<?php
 	}
+}
+
+
+add_filter('query_vars', 'paypound_query_vars');
+add_action('init', 'paypound_payment_callback_urls');
+
+function paypound_query_vars($vars){
+  $vars[] = 'order_id';
+  $vars[] = 'status';
+  $vars[] = 'message';
+  $vars[] = 'customer_order_id';
+  return $vars;
+}
+
+function paypound_payment_callback_urls() {
+
+  add_rewrite_rule(
+    '^paypound-callback/(\w)?',
+    'index.php?customer_order_id=$matches[1]',
+    'top'
+  );
+
+}
+add_action('parse_request', 'paypound_total_callback');
+function paypound_total_callback( $wp ){
+	$paypoundTotalCallback = new paypoundTotalCallback();
+	$paypoundTotalCallback->paypoundCallback($wp);
+}
+
+
+class paypoundTotalCallback extends WC_Payment_Gateway {
+    public function paypoundCallback( $wp ) {
+    	$valid_actions = array('customer_order_id');
+
+		if( isset($wp->query_vars['customer_order_id']) && !empty($wp->query_vars['customer_order_id']) ) {
+			
+			$orderId = $wp->query_vars['customer_order_id'];
+			$status = $wp->query_vars['status'];
+			$message = isset($wp->query_vars['reason']) ? $wp->query_vars['reason'] : '';
+			if( empty($message) ){
+				$message = isset( $wp->query_vars['message'] ) ? $wp->query_vars['message'] : "";
+			}
+			
+			if( $status == "success" ){
+				
+				global $woocommerce;
+
+				// we need it to get any order detailes
+				$order = wc_get_order( $orderId );
+
+				$order->payment_complete();
+				$order->reduce_order_stock();
+				$order->add_order_note( $message, true );
+                $order->update_status( 'wc-completed', $message );
+				$woocommerce->cart->empty_cart();
+                wc_add_notice($message,'Success');
+				wc_add_notice( __( $message, 'woocommerce' ), 'success' );
+				$order_url = $this->get_return_url( $order );
+				wp_redirect($order_url);
+				exit;
+				
+			}else{
+				global $woocommerce;
+				$order = wc_get_order( $orderId );
+				$order->add_order_note( $message, true );
+                $order->update_status( 'wc-failed', $message );
+                $woocommerce->cart->empty_cart();
+                wc_add_notice($message,'Error');
+				wc_add_notice( __( $message, 'woocommerce' ), 'error' );
+				// wp_safe_redirect( wc_get_checkout_url() );
+				// exit;
+				$order_url = $this->get_return_url( $order );
+				wp_redirect($order_url);
+				exit;
+				
+			}
+
+		}
+    }
 }

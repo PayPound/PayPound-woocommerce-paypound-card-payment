@@ -2,7 +2,7 @@
 
 class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 
-    private $order_status;
+  private $order_status;
 
 	public function __construct(){
 		$this->id = 'paypound_payment';
@@ -150,7 +150,7 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 			$args['email'] = $order->get_billing_email();
 			$args['phone_no'] = $order->get_billing_phone();
 		}
-		
+
 		$curl = curl_init();
 		$postData = json_encode($args);
 		curl_setopt_array($curl, array(
@@ -159,6 +159,8 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 		  CURLOPT_ENCODING => '',
 		  CURLOPT_MAXREDIRS => 10,
 		  CURLOPT_TIMEOUT => 0,
+		  CURLOPT_SSL_VERIFYHOST => 0,
+		  CURLOPT_SSL_VERIFYPEER => 0,
 		  CURLOPT_FOLLOWLOCATION => true,
 		  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
 		  CURLOPT_CUSTOMREQUEST => 'POST',
@@ -192,12 +194,12 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 		);
 		}else if(isset($result['status']) && $result['status'] == '3d_redirect'){
 			wc_reduce_stock_levels( $order_id );
-			$order->update_status($this->order_status, __( 'Awaiting payment', 'woocommerce-paypound-payment-gateway' ));
+			$order->update_status('processing', __( 'Awaiting payment', 'woocommerce-paypound-payment-gateway' ));
 			$order->add_order_note(esc_html('Order goes to the 3ds redirect : '.$result['redirect_3ds_url']),1);
 		
-		// Remove cart
-		$woocommerce->cart->empty_cart();
-			
+			// Remove cart
+			$woocommerce->cart->empty_cart();
+
 			return array(
 			'result' => 'success',
 			'redirect' => $result['redirect_3ds_url']

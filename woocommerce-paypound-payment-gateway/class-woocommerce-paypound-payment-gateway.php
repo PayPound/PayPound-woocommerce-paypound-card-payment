@@ -137,6 +137,7 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 			'cvvNumber' => $_POST['card']['cvv'],
 			'customer_order_id' => $order_id,
 			'response_url' => site_url('paypound-callback'),
+			'webhook_url' => admin_url('admin-ajax.php')."?action=update_pending_tx&ostatus=".$this->order_status,
 		);
 
 		if( $order->status == "failed" ){
@@ -242,6 +243,55 @@ class WC_Paypound_Payment_Gateway extends WC_Payment_Gateway{
 }
 
 
+function updatePendingTranscations() {
+			$rawdata = file_get_contents("php://input");
+			$orderDetails = json_decode($rawdata, true);
+			
+			$orderId = $orderDetails['customer_order_id'];
+			$ostatus = $_REQUEST['ostatus'];
+			$status = $orderDetails['transaction_status'];
+			$message = isset($orderDetails['reason']) ? $orderDetails['reason'] : '';
+			if( empty($message) ){
+				$message = isset( $orderDetails['message'] ) ? $orderDetails['message'] : "";
+			}
+			
+			global $woocommerce;
+
+			// we need it to get any order detailes
+			$order = wc_get_order( $orderId );
+			$order->add_order_note( $message, true );
+
+
+			if( $status == "success" ){
+
+				// we need it to get any order detailes
+
+				$order->payment_complete();
+				$order->reduce_order_stock();
+				$order->add_order_note( $message, true );
+			  $order->update_status( $ostatus, $message );
+				$woocommerce->cart->empty_cart();
+        wc_add_notice($message,'Success');
+				wc_add_notice( __( $message, 'woocommerce' ), 'success' );
+
+			}else{
+
+				$order->add_order_note( $message, true );
+        $order->update_status( 'wc-failed', $message );
+        $woocommerce->cart->empty_cart();
+        wc_add_notice($message,'Error');
+				wc_add_notice( __( $message, 'woocommerce' ), 'error' );
+
+			}
+
+
+    wp_die();
+}
+
+add_action( 'wp_ajax_nopriv_update_pending_tx', 'updatePendingTranscations' );
+add_action( 'wp_ajax_update_pending_tx', 'updatePendingTranscations' );
+
+
 add_filter('query_vars', 'paypound_query_vars');
 add_action('init', 'paypound_payment_callback_urls');
 
@@ -254,14 +304,13 @@ function paypound_query_vars($vars){
 }
 
 function paypound_payment_callback_urls() {
-
   add_rewrite_rule(
     '^paypound-callback/(\w)?',
     'index.php?customer_order_id=$matches[1]',
     'top'
   );
-
 }
+
 add_action('parse_request', 'paypound_total_callback');
 function paypound_total_callback( $wp ){
 	$paypoundTotalCallback = new paypoundTotalCallback();
@@ -270,6 +319,19 @@ function paypound_total_callback( $wp ){
 
 
 class paypoundTotalCallback extends WC_Payment_Gateway {
+
+		private $order_status;
+
+		public function __construct(){
+			$this->id = 'paypound_payment';
+			$this->method_title = __('Paypound Payment','woocommerce-Paypound-payment-gateway');
+			$this->method_description = __('Paypound Payment getway provide direct payment','woocommerce-Paypound-payment-gateway');
+			$this->title = __('Paypound Payment','woocommerce-Paypound-payment-gateway');
+			$this->init_settings();
+			$this->order_status = $this->get_option('order_status');
+
+		}
+
     public function paypoundCallback( $wp ) {
     	$valid_actions = array('customer_order_id');
 
@@ -292,14 +354,32 @@ class paypoundTotalCallback extends WC_Payment_Gateway {
 				$order->payment_complete();
 				$order->reduce_order_stock();
 				$order->add_order_note( $message, true );
-                $order->update_status( 'wc-completed', $message );
+			  $order->update_status( $this->order_status, $message );
 				$woocommerce->cart->empty_cart();
-                wc_add_notice($message,'Success');
+        wc_add_notice($message,'Success');
 				wc_add_notice( __( $message, 'woocommerce' ), 'success' );
 				$order_url = $this->get_return_url( $order );
 				wp_redirect($order_url);
 				exit;
 				
+			}elseif( $status == "pending" ){
+
+				global $woocommerce;
+
+				// we need it to get any order detailes
+				$order = wc_get_order( $orderId );
+
+				$order->payment_complete();
+				$order->reduce_order_stock();
+				$order->add_order_note( $message, true );
+			  $order->update_status( 'wc-processing', $message );
+				$woocommerce->cart->empty_cart();
+        wc_add_notice($message,'Processing');
+				wc_add_notice( __( $message, 'woocommerce' ), 'processing' );
+				$order_url = $this->get_return_url( $order );
+				wp_redirect($order_url);
+				exit;
+
 			}else{
 				global $woocommerce;
 				$order = wc_get_order( $orderId );

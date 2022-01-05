@@ -274,6 +274,16 @@ function updatePendingTranscations() {
         wc_add_notice($message,'Success');
 				wc_add_notice( __( $message, 'woocommerce' ), 'success' );
 
+			}elseif( $status == "pending" ){
+
+				$order->payment_complete();
+				$order->reduce_order_stock();
+				$order->add_order_note( $message, true );
+			  $order->update_status( 'wc-failed', $message );
+				$woocommerce->cart->empty_cart();
+        wc_add_notice($message,'Error');
+				wc_add_notice( __( $message, 'woocommerce' ), 'error' );
+
 			}else{
 
 				$order->add_order_note( $message, true );
@@ -372,10 +382,10 @@ class paypoundTotalCallback extends WC_Payment_Gateway {
 				$order->payment_complete();
 				$order->reduce_order_stock();
 				$order->add_order_note( $message, true );
-			  $order->update_status( 'wc-processing', $message );
+			  $order->update_status( 'wc-failed', $message );
 				$woocommerce->cart->empty_cart();
-        wc_add_notice($message,'Processing');
-				wc_add_notice( __( $message, 'woocommerce' ), 'processing' );
+        wc_add_notice($message,'Error');
+				wc_add_notice( __( $message, 'woocommerce' ), 'error' );
 				$order_url = $this->get_return_url( $order );
 				wp_redirect($order_url);
 				exit;
@@ -388,8 +398,7 @@ class paypoundTotalCallback extends WC_Payment_Gateway {
                 $woocommerce->cart->empty_cart();
                 wc_add_notice($message,'Error');
 				wc_add_notice( __( $message, 'woocommerce' ), 'error' );
-				// wp_safe_redirect( wc_get_checkout_url() );
-				// exit;
+				
 				$order_url = $this->get_return_url( $order );
 				wp_redirect($order_url);
 				exit;
